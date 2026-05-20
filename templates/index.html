@@ -257,6 +257,82 @@
             font-family: 'IBM Plex Sans', sans-serif;
         }
 
+/* Work cards for Layer 1 */
+.work-card {
+            background: white;
+            border: 1px solid var(--rule);
+            border-left: 3px solid var(--layer1);
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+            color: var(--ink);
+        }
+
+        .card-meta {
+            display: flex;
+            gap: 1.5rem;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--muted);
+            margin-bottom: 0.75rem;
+            letter-spacing: 0.03em;
+        }
+
+        .card-relevance {
+            font-size: 0.875rem;
+            color: #2a2a2a;
+            line-height: 1.7;
+            margin-top: 0.5rem;
+        }
+
+        .card-position {
+            font-size: 0.8rem;
+            color: var(--accent);
+            font-family: 'IBM Plex Mono', monospace;
+            margin-top: 0.4rem;
+            font-style: italic;
+        }
+
+        .layer-2 .work-card { border-left-color: var(--layer2); }
+        .layer-3 .work-card { border-left-color: var(--layer3); }
+
+        .layer-content ul {
+            padding-left: 1.5rem;
+            margin: 0.5rem 0 1rem;
+        }
+
+        .layer-content li {
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: #2a2a2a;
+            margin-bottom: 0.4rem;
+        }
+
+        .prose-heading {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink);
+            margin-top: 1.25rem;
+            margin-bottom: 0.4rem;
+            font-weight: 500;
+        }
+
+        .prose-line {
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: #2a2a2a;
+            margin-bottom: 0.5rem;
+        }
+
         .streaming-cursor {
             display: inline-block;
             width: 2px;
@@ -347,6 +423,8 @@
     <footer>Strata — Powered by OpenAlex &amp; Claude &nbsp;·&nbsp; Academic Research Intelligence</footer>
 
     <script>
+        let fullText = '';
+
         function setStatus(msg) {
             const el = document.getElementById('status');
             el.textContent = msg;
@@ -354,8 +432,7 @@
         }
 
         function clearStatus() {
-            const el = document.getElementById('status');
-            el.classList.remove('visible');
+            document.getElementById('status').classList.remove('visible');
         }
 
         function showScholars(intelligence) {
@@ -367,46 +444,100 @@
             section.style.display = 'block';
         }
 
-        function parseAndRenderLayers(fullText) {
-            const layer1Match = fullText.split('---LAYER2---')[0].replace('---LAYER1---', '').trim();
-            const layer2Match = fullText.includes('---LAYER2---')
-                ? fullText.split('---LAYER2---')[1].split('---LAYER3---')[0].trim()
-                : '';
-            const layer3Match = fullText.includes('---LAYER3---')
-                ? fullText.split('---LAYER3---')[1].trim()
-                : '';
+        function extractLayer(text, marker, nextMarker) {
+            if (!text.includes(marker)) return '';
+            const after = text.split(marker)[1];
+            if (!nextMarker || !after.includes(nextMarker)) return after.trim();
+            return after.split(nextMarker)[0].trim();
+        }
 
-            if (layer1Match) {
-                document.getElementById('layer1Content').textContent = layer1Match;
+        function markdownToHtml(text) {
+            const lines = text.split('\n');
+            let html = '';
+            let inList = false;
+
+            for (const raw of lines) {
+                const line = raw.trimEnd();
+
+                // Blank line — close any open list
+                if (!line.trim()) {
+                    if (inList) { html += '</ul>'; inList = false; }
+                    continue;
+                }
+
+                // List item: starts with -, *, or •
+                if (/^\s*[-*•]\s+/.test(line)) {
+                    if (!inList) { html += '<ul>'; inList = true; }
+                    const content = line.replace(/^\s*[-*•]\s+/, '');
+                    html += `<li>${inlineMarkdown(content)}</li>`;
+                    continue;
+                }
+
+                // Numbered list
+                if (/^\s*\d+\.\s+/.test(line)) {
+                    if (!inList) { html += '<ul>'; inList = true; }
+                    const content = line.replace(/^\s*\d+\.\s+/, '');
+                    html += `<li>${inlineMarkdown(content)}</li>`;
+                    continue;
+                }
+
+                // Close list before a paragraph
+                if (inList) { html += '</ul>'; inList = false; }
+
+                // Heading-like lines (short, ends with colon, or all caps)
+                if (line.trim().endsWith(':') && line.trim().length < 80) {
+                    html += `<p class="prose-heading">${inlineMarkdown(line.trim())}</p>`;
+                    continue;
+                }
+
+                // Regular paragraph
+                html += `<p class="prose-line">${inlineMarkdown(line.trim())}</p>`;
+            }
+
+            if (inList) html += '</ul>';
+            return html;
+        }
+
+        function inlineMarkdown(text) {
+            return text
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>');
+        }
+
+        function parseAndRenderLayers(text) {
+            const l1 = extractLayer(text, '---LAYER1---', '---LAYER2---');
+            const l2 = extractLayer(text, '---LAYER2---', '---LAYER3---');
+            const l3 = extractLayer(text, '---LAYER3---', null);
+
+            document.getElementById('results').style.display = 'block';
+
+            if (l1) {
+                document.getElementById('layer1Content').innerHTML = markdownToHtml(l1);
                 document.getElementById('layer1').classList.add('visible');
             }
-            if (layer2Match) {
-                document.getElementById('layer2Content').textContent = layer2Match;
+            if (l2) {
+                document.getElementById('layer2Content').innerHTML = markdownToHtml(l2);
                 document.getElementById('layer2').classList.add('visible');
             }
-            if (layer3Match) {
-                document.getElementById('layer3Content').textContent = layer3Match;
+            if (l3) {
+                document.getElementById('layer3Content').innerHTML = markdownToHtml(l3);
                 document.getElementById('layer3').classList.add('visible');
             }
-
-            const resultsEl = document.getElementById('results');
-            resultsEl.style.display = 'block';
         }
 
         async function runSearch() {
             const context = document.getElementById('context').value.trim();
             if (!context) return;
 
-            // Reset UI
+            fullText = '';
             document.getElementById('searchBtn').disabled = true;
             document.getElementById('scholarsSection').style.display = 'none';
             document.getElementById('results').style.display = 'none';
-            document.getElementById('layer1').classList.remove('visible');
-            document.getElementById('layer2').classList.remove('visible');
-            document.getElementById('layer3').classList.remove('visible');
-            document.getElementById('layer1Content').textContent = '';
-            document.getElementById('layer2Content').textContent = '';
-            document.getElementById('layer3Content').textContent = '';
+            ['layer1','layer2','layer3'].forEach(id => {
+                document.getElementById(id).classList.remove('visible');
+                document.getElementById(id + 'Content').innerHTML = '';
+            });
 
             setStatus('Initializing search...');
 
@@ -418,25 +549,19 @@
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
-            let fullText = '';
 
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-
+                const lines = decoder.decode(value).split('\n');
                 for (const line of lines) {
                     if (!line.startsWith('data: ')) continue;
                     try {
                         const data = JSON.parse(line.slice(6));
-
-                        if (data.type === 'status') {
-                            setStatus(data.message);
-                        } else if (data.type === 'scholars') {
-                            showScholars(data.data);
-                        } else if (data.type === 'chunk') {
+                        if (data.type === 'status') setStatus(data.message);
+                        else if (data.type === 'scholars') showScholars(data.data);
+                        else if (data.type === 'chunk') {
                             fullText += data.text;
                             parseAndRenderLayers(fullText);
                         } else if (data.type === 'done') {
