@@ -10,7 +10,10 @@ load_dotenv()
 app = Flask(__name__)
 client = Anthropic()
 
-def get_abstract(abstract_inverted_index):
+def get_abstract(work):
+    if work.get("abstract_text"):
+        return work["abstract_text"]
+    abstract_inverted_index = work.get("abstract_inverted_index")
     if not abstract_inverted_index:
         return "No abstract available."
     word_positions = []
@@ -43,7 +46,7 @@ Respond in this exact JSON format with no additional text and no markdown fences
 
     message = client.messages.create(
         model="claude-opus-4-5",
-        max_tokens=1000,
+        max_tokens=4000,
         messages=[{"role": "user", "content": prompt}]
     )
     response_text = message.content[0].text.strip()
@@ -62,7 +65,11 @@ def search_by_author(author_name):
         "sort": "cited_by_count:desc"
     }
     response = requests.get(url, params=params)
-    return response.json().get("results", [])
+    results = response.json().get("results", [])
+    for r in results:
+        r["source"] = "OpenAlex"
+        r["abstract_text"] = None
+    return results
 
 def search_by_term(term):
     url = "https://api.openalex.org/works"
@@ -73,7 +80,67 @@ def search_by_term(term):
         "sort": "cited_by_count:desc"
     }
     response = requests.get(url, params=params)
-    return response.json().get("results", [])
+    results = response.json().get("results", [])
+    for r in results:
+        r["source"] = "OpenAlex"
+        r["abstract_text"] = None
+    return results
+
+def normalize_semantic_scholar(papers):
+    normalized = []
+    for p in papers:
+        authors = p.get("authors", [])
+        normalized.append({
+            "id": f"ss:{p.get('paperId', '')}",
+            "title": p.get("title"),
+            "publication_year": p.get("year"),
+            "cited_by_count": p.get("citationCount", 0),
+            "referenced_works": [
+                f"ss:{r['paperId']}"
+                for r in p.get("references", [])
+                if r.get("paperId")
+            ],
+            "authorships": [
+                {"author": {"display_name": a.get("name", "Unknown")}}
+                for a in authors
+            ],
+            "abstract_inverted_index": None,
+            "abstract_text": p.get("abstract", "No abstract available."),
+            "source": "Semantic Scholar"
+        })
+    return normalized
+
+def search_semantic_scholar_by_author(author_name):
+    api_key = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
+    url = "https://api.semanticscholar.org/graph/v1/paper/search"
+    params = {
+        "query": author_name,
+        "limit": 5,
+        "fields": "title,year,citationCount,abstract,authors,references"
+    }
+    headers = {"x-api-key": api_key}
+    try:
+        response = requests.get(url, params=params, headers=headers)
+        data = response.json()
+        return normalize_semantic_scholar(data.get("data", []))
+    except Exception:
+        return []
+
+def search_semantic_scholar_by_term(term):
+    api_key = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
+    url = "https://api.semanticscholar.org/graph/v1/paper/search"
+    params = {
+        "query": term,
+        "limit": 5,
+        "fields": "title,year,citationCount,abstract,authors,references"
+    }
+    headers = {"x-api-key": api_key}
+    try:
+        response = requests.get(url, params=params, headers=headers)
+        data = response.json()
+        return normalize_semantic_scholar(data.get("data", []))
+    except Exception:
+        return []
 
 def deduplicate_works(all_works):
     seen_ids = set()
@@ -91,11 +158,11 @@ def build_analysis_prompt(research_context, works, opposing_positions):
         author = "Unknown"
         if work.get("authorships"):
             author = work["authorships"][0]["author"]["display_name"]
-        abstract = get_abstract(work.get("abstract_inverted_index"))
+        abstract = get_abstract(work)
         works_summary.append(
             f"[{i}] Title: {work.get('title', 'Unknown')}\n"
             f"    Author: {author} | Year: {work.get('publication_year', 'Unknown')} | "
-            f"Cited by: {work.get('cited_by_count', 0)}\n"
+            f"Cited by: {work.get('cited_by_count', 0)} | Source: {work.get('source', 'Unknown')}\n"
             f"    Abstract: {abstract[:300]}..."
         )
 
@@ -153,10 +220,14 @@ def search():
             for scholar in intelligence["scholars"]:
                 works = search_by_author(scholar)
                 all_works.extend(works)
+                ss_works = search_semantic_scholar_by_author(scholar)
+                all_works.extend(ss_works)
 
             for term in intelligence["search_terms"]:
                 works = search_by_term(term)
                 all_works.extend(works)
+                ss_works = search_semantic_scholar_by_term(term)
+                all_works.extend(ss_works)
 
             unique_works = deduplicate_works(all_works)
             yield f"data: {json.dumps({'type': 'status', 'message': f'Analyzing {len(unique_works)} works across three layers...'})}\n\n"
