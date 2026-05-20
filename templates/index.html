@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strata — Academic Research Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #0e0e0e;
+            --paper: #f5f0e8;
+            --paper-dark: #ede8dc;
+            --accent: #8b1a1a;
+            --accent-light: #c0392b;
+            --rule: #c8bfaa;
+            --muted: #6b6355;
+            --layer1: #1a3a1a;
+            --layer2: #1a2a3a;
+            --layer3: #3a1a1a;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--paper);
+            color: var(--ink);
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-weight: 300;
+            min-height: 100vh;
+        }
+
+        /* Subtle paper texture */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        header {
+            border-bottom: 1px solid var(--rule);
+            padding: 2rem 3rem;
+            display: flex;
+            align-items: baseline;
+            gap: 1.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .wordmark {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            color: var(--ink);
+        }
+
+        .wordmark span {
+            color: var(--accent);
+        }
+
+        .tagline {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--muted);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            border-left: 1px solid var(--rule);
+            padding-left: 1.5rem;
+        }
+
+        main {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .search-section {
+            margin-bottom: 3rem;
+        }
+
+        .search-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        .search-intro {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.6rem;
+            line-height: 1.4;
+            color: var(--ink);
+            margin-bottom: 2rem;
+            font-style: italic;
+            max-width: 680px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            background: white;
+            border: 1px solid var(--rule);
+            border-left: 3px solid var(--accent);
+            padding: 1.25rem 1.5rem;
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 300;
+            color: var(--ink);
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.2s;
+            line-height: 1.6;
+        }
+
+        textarea:focus {
+            border-color: var(--rule);
+            border-left-color: var(--accent-light);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.06);
+        }
+
+        textarea::placeholder {
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        .search-actions {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        button {
+            background: var(--ink);
+            color: var(--paper);
+            border: none;
+            padding: 0.85rem 2.5rem;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover { background: var(--accent); }
+        button:disabled { background: var(--muted); cursor: not-allowed; }
+
+        .status-line {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--muted);
+            letter-spacing: 0.05em;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .status-line.visible { opacity: 1; }
+
+        .status-line::before {
+            content: '→ ';
+            color: var(--accent);
+        }
+
+        /* Scholar pills */
+        .scholars-section {
+            display: none;
+            margin-bottom: 2.5rem;
+            padding: 1.25rem 1.5rem;
+            background: var(--paper-dark);
+            border: 1px solid var(--rule);
+        }
+
+        .scholars-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.65rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .scholar-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .pill {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            padding: 0.3rem 0.75rem;
+            border: 1px solid var(--rule);
+            background: white;
+            color: var(--ink);
+            letter-spacing: 0.03em;
+        }
+
+        /* Results layers */
+        .results {
+            display: none;
+        }
+
+        .layer {
+            margin-bottom: 2.5rem;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity 0.4s, transform 0.4s;
+        }
+
+        .layer.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .layer-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .layer-number {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.65rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 0.25rem 0.6rem;
+            color: white;
+        }
+
+        .layer-1 .layer-number { background: var(--layer1); }
+        .layer-2 .layer-number { background: var(--layer2); }
+        .layer-3 .layer-number { background: var(--layer3); }
+
+        .layer-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .layer-content {
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: #2a2a2a;
+            white-space: pre-wrap;
+            font-family: 'IBM Plex Sans', sans-serif;
+        }
+
+        .streaming-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: var(--accent);
+            margin-left: 2px;
+            animation: blink 1s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        .divider {
+            border: none;
+            border-top: 1px solid var(--rule);
+            margin: 3rem 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--muted);
+            letter-spacing: 0.1em;
+            border-top: 1px solid var(--rule);
+            position: relative;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="wordmark">Str<span>a</span>ta</div>
+        <div class="tagline">Academic Research Intelligence</div>
+    </header>
+
+    <main>
+        <div class="search-section">
+            <span class="search-label">Research Context</span>
+            <p class="search-intro">Describe your research in plain language. Strata will surface relevant works, trace their intellectual lineage, and map the scholarly debate.</p>
+
+            <textarea id="context" placeholder="e.g. I am writing a dissertation on adoption practices in the first century Roman world. I need scholarly works on Roman family structure, legal adoption, patria potestas, and social practices around inheritance and family formation in antiquity."></textarea>
+
+            <div class="search-actions">
+                <button id="searchBtn" onclick="runSearch()">Search</button>
+                <span class="status-line" id="status"></span>
+            </div>
+        </div>
+
+        <div class="scholars-section" id="scholarsSection">
+            <div class="scholars-label">Key Scholars Identified</div>
+            <div class="scholar-pills" id="scholarPills"></div>
+        </div>
+
+        <div class="results" id="results">
+            <hr class="divider">
+
+            <div class="layer layer-1" id="layer1">
+                <div class="layer-header">
+                    <span class="layer-number">Layer 1</span>
+                    <span class="layer-title">Relevant Works</span>
+                </div>
+                <div class="layer-content" id="layer1Content"></div>
+            </div>
+
+            <div class="layer layer-2" id="layer2">
+                <div class="layer-header">
+                    <span class="layer-number">Layer 2</span>
+                    <span class="layer-title">Intellectual Lineage</span>
+                </div>
+                <div class="layer-content" id="layer2Content"></div>
+            </div>
+
+            <div class="layer layer-3" id="layer3">
+                <div class="layer-header">
+                    <span class="layer-number">Layer 3</span>
+                    <span class="layer-title">Scholarly Debate</span>
+                </div>
+                <div class="layer-content" id="layer3Content"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer>Strata — Powered by OpenAlex &amp; Claude &nbsp;·&nbsp; Academic Research Intelligence</footer>
+
+    <script>
+        function setStatus(msg) {
+            const el = document.getElementById('status');
+            el.textContent = msg;
+            el.classList.add('visible');
+        }
+
+        function clearStatus() {
+            const el = document.getElementById('status');
+            el.classList.remove('visible');
+        }
+
+        function showScholars(intelligence) {
+            const section = document.getElementById('scholarsSection');
+            const pills = document.getElementById('scholarPills');
+            pills.innerHTML = intelligence.scholars
+                .map(s => `<span class="pill">${s}</span>`)
+                .join('');
+            section.style.display = 'block';
+        }
+
+        function parseAndRenderLayers(fullText) {
+            const layer1Match = fullText.split('---LAYER2---')[0].replace('---LAYER1---', '').trim();
+            const layer2Match = fullText.includes('---LAYER2---')
+                ? fullText.split('---LAYER2---')[1].split('---LAYER3---')[0].trim()
+                : '';
+            const layer3Match = fullText.includes('---LAYER3---')
+                ? fullText.split('---LAYER3---')[1].trim()
+                : '';
+
+            if (layer1Match) {
+                document.getElementById('layer1Content').textContent = layer1Match;
+                document.getElementById('layer1').classList.add('visible');
+            }
+            if (layer2Match) {
+                document.getElementById('layer2Content').textContent = layer2Match;
+                document.getElementById('layer2').classList.add('visible');
+            }
+            if (layer3Match) {
+                document.getElementById('layer3Content').textContent = layer3Match;
+                document.getElementById('layer3').classList.add('visible');
+            }
+
+            const resultsEl = document.getElementById('results');
+            resultsEl.style.display = 'block';
+        }
+
+        async function runSearch() {
+            const context = document.getElementById('context').value.trim();
+            if (!context) return;
+
+            // Reset UI
+            document.getElementById('searchBtn').disabled = true;
+            document.getElementById('scholarsSection').style.display = 'none';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('layer1').classList.remove('visible');
+            document.getElementById('layer2').classList.remove('visible');
+            document.getElementById('layer3').classList.remove('visible');
+            document.getElementById('layer1Content').textContent = '';
+            document.getElementById('layer2Content').textContent = '';
+            document.getElementById('layer3Content').textContent = '';
+
+            setStatus('Initializing search...');
+
+            const response = await fetch('/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ context })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullText = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    try {
+                        const data = JSON.parse(line.slice(6));
+
+                        if (data.type === 'status') {
+                            setStatus(data.message);
+                        } else if (data.type === 'scholars') {
+                            showScholars(data.data);
+                        } else if (data.type === 'chunk') {
+                            fullText += data.text;
+                            parseAndRenderLayers(fullText);
+                        } else if (data.type === 'done') {
+                            clearStatus();
+                            document.getElementById('searchBtn').disabled = false;
+                        } else if (data.type === 'error') {
+                            setStatus('Error: ' + data.message);
+                            document.getElementById('searchBtn').disabled = false;
+                        }
+                    } catch(e) {}
+                }
+            }
+        }
+    </script>
+</body>
+</html>
