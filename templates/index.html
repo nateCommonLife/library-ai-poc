@@ -485,6 +485,14 @@
                 if (inList) { html += '</ul>'; inList = false; }
 
                 // Heading-like lines (short, ends with colon, or all caps)
+                // Markdown headings (##, ###, etc)
+                if (/^#{1,6}\s+/.test(line.trim())) {
+                    const content = line.trim().replace(/^#{1,6}\s+/, '');
+                    html += `<p class="prose-heading">${inlineMarkdown(content)}</p>`;
+                    continue;
+                }
+
+                // Heading-like lines (short, ends with colon)
                 if (line.trim().endsWith(':') && line.trim().length < 80) {
                     html += `<p class="prose-heading">${inlineMarkdown(line.trim())}</p>`;
                     continue;

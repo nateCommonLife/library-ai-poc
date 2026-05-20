@@ -46,7 +46,7 @@ Respond in this exact JSON format with no additional text and no markdown fences
 
     message = client.messages.create(
         model="claude-opus-4-5",
-        max_tokens=4000,
+        max_tokens=1000,
         messages=[{"role": "user", "content": prompt}]
     )
     response_text = message.content[0].text.strip()
@@ -152,6 +152,47 @@ def deduplicate_works(all_works):
             unique_works.append(work)
     return unique_works
 
+def prefilter_works(works, scholars, search_terms):
+    signals = set()
+    for scholar in scholars:
+        for part in scholar.lower().split():
+            if len(part) > 3:
+                signals.add(part)
+    for term in search_terms:
+        for part in term.lower().split():
+            if len(part) > 3:
+                signals.add(part)
+
+    off_topic = [
+        "genome", "genomic", "dna", "rna", "protein", "cancer",
+        "cardiac", "tumor", "obesity", "neural network", "machine learning",
+        "astrophysics", "cosmology", "climate", "biodiversity", "ecology",
+        "alzheimer", "diabetes", "pharmacol", "molecular", "cell biology",
+        "magnetic resonance", "chromosome", "epidemiol", "gravitational",
+        "planck", "higgs", "quantum", "crispr", "mitochondrial"
+    ]
+
+    scored = []
+    for work in works:
+        title = (work.get("title") or "").lower()
+        abstract = (work.get("abstract_text") or "").lower()
+        score = 0
+
+        for signal in signals:
+            if signal in title:
+                score += 3
+            if signal in abstract:
+                score += 1
+
+        for term in off_topic:
+            if term in title or term in abstract:
+                score -= 5
+
+        scored.append((score, work))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [w for _, w in scored]
+
 def build_analysis_prompt(research_context, works, opposing_positions):
     works_summary = []
     for i, work in enumerate(works):
@@ -230,18 +271,24 @@ def search():
                 all_works.extend(ss_works)
 
             unique_works = deduplicate_works(all_works)
-            yield f"data: {json.dumps({'type': 'status', 'message': f'Analyzing {len(unique_works)} works across three layers...'})}\n\n"
+            filtered_works = prefilter_works(
+                unique_works,
+                intelligence["scholars"],
+                intelligence["search_terms"]
+            )
+
+            yield f"data: {json.dumps({'type': 'status', 'message': f'Analyzing {len(filtered_works)} works across three layers...'})}\n\n"
 
             prompt = build_analysis_prompt(
                 research_context,
-                unique_works[:20],
+                filtered_works[:20],
                 intelligence["opposing_positions"]
             )
 
             full_response = ""
             with client.messages.stream(
                 model="claude-opus-4-5",
-                max_tokens=2000,
+                max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}]
             ) as stream:
                 for text in stream.text_stream:
